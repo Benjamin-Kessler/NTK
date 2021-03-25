@@ -1,13 +1,7 @@
 """Functions related to loading datasets."""
 
-import gzip
-import os
-import shutil
-import urllib.request
-
 from jax import random
 import numpy as np
-import tensorflow as tf
 import tensorflow_datasets as tfds
 
 
@@ -30,7 +24,7 @@ def get_dataset(name,
                 data_dir=None,
                 input_key='image'):
     """Download, parse and process a dataset to unit scale and one-hot labels.
-    Uses 'tensorflow_datasets.load' for downloading datasets."""
+       Uses 'tensorflow_datasets.load' for downloading datasets."""
     ds_builder = tfds.builder(name)
 
     ds_train, ds_test = tfds.as_numpy(
@@ -38,7 +32,7 @@ def get_dataset(name,
             name + (':3.*.*' if name != 'imdb_reviews' else ''),
             split=['train' + ('[:%d]' % n_train if n_train is not None else ''),
                    'test' + ('[:%d]' % n_test if n_test is not None else '')],
-            batch_size=1,
+            batch_size=-1,
             as_dataset_kwargs={'shuffle_files': False},
             data_dir=data_dir))
 

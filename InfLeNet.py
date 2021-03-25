@@ -1,10 +1,19 @@
+"""An example comparing training a neural network with its infinite-width
+counterpart.
+
+In this example we train a neural network and its infinite-width kernels.
+The network is a simplified version of LeNet5 with average pooling instead
+of max pooling. We use momentum and minibatching on the full MNIST dataset.
+Data is loaded using tensorflow datasets.
+"""
+
 import time
-from absl import flags
+from absl import flags, app
 import jax.numpy as np
 import neural_tangents as nt
 from neural_tangents import stax
-from examples import datasets
-from examples import util
+import datasets
+import util
 
 flags.DEFINE_integer('batch_size_kernel', 10,
                      'Batch size for kernel construction, 0 for no batching.')
@@ -72,3 +81,7 @@ def main(unused_argv):
     loss = lambda fx, y_hat: 0.5 * np.mean((fx - y_hat) ** 2)
     util.print_summary('NNGP test', y_test, fx_test_nngp, None, loss)
     util.print_summary('NTK test', y_test, fx_test_ntk, None, loss)
+
+
+if __name__ == '__main__':
+    app.run(main)

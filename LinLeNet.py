@@ -1,11 +1,10 @@
-"""An example comparing training a neural network with its linearization and
-its infinite-width counterpart.
+"""An example comparing training a neural network with its linearization.
 
-In this example we train a neural network, its infinite-width kernels and a
-linear model corresponding to the first order Taylor seres of the network
-about its initial parameters. The network is a simplified version of LeNet5
-with average pooling instead of max pooling. We use momentum and minibatching
-on the full MNIST dataset. Data is loaded using tensorflow datasets.
+In this example we train a neural network and a linear model corresponding
+to the first order Taylor seres of the network about its initial parameters.
+The network is a simplified version of LeNet5 with average pooling instead
+of max pooling. We use momentum and minibatching on the full MNIST dataset.
+Data is loaded using tensorflow datasets.
 """
 
 import time
@@ -19,14 +18,14 @@ from jax.experimental.stax import logsoftmax
 import jax.numpy as np
 import neural_tangents as nt
 from neural_tangents import stax
-from examples import datasets
-from examples import util
+import datasets
+import util
 
 flags.DEFINE_float('learning_rate', 0.1,
                    'Learning rate to use during training.')
 flags.DEFINE_integer('batch_size', 100,
                      'Batch size to use during training.')
-flags.DEFINE_integer('batch_size_kernel', 10,
+flags.DEFINE_integer('batch_size_kernel', 100,
                      'Batch size for kernel construction, 0 for no batching.')
 flags.DEFINE_integer('train_epochs', 100,
                      'Number of epochs to train for.')
