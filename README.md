@@ -9,7 +9,7 @@ This repository contains the code for my Master's thesis. The code heavily relie
 
 ## Installation
 
-The instructions below describe how to install neural_tangents using [Anaconda](https://docs.anaconda.com) so that it utilizes the GPU on sciCORE. For a more generic installation, see [neural_tangent's](https://github.com/google/neural_tangents/#installation) instructions.
+The instructions below describe how to install neural_tangents using [Anaconda](https://docs.anaconda.com) so that it utilizes the GPU on sciCORE. For a more generic installation, see [neural_tangent's](https://github.com/google/neural-tangents#installation) instructions.
 
 As neural_tangents is built using [JAX](https://github.com/google/jax), you must first install [CUDA](https://developer.nvidia.com/cuda-downloads) and [cuDNN](https://developer.nvidia.com/cudnn). JAX unfortunately does not bundle CUDA or cuDNN as part of the `pip` package.
 
