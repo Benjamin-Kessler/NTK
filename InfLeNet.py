@@ -17,10 +17,10 @@ import util
 
 flags.DEFINE_integer('batch_size_kernel', 10,
                      'Batch size for kernel construction, 0 for no batching.')
-flags.DEFINE_integer('train_epochs', 100,
-                     'Number of epochs to train for.')
 flags.DEFINE_integer('network_width', 1,
                      'Factor by which the network width is multiplied.')
+flags.DEFINE_integer('batch_size_output', 10,
+                     'Batch size for computing final label predictions.')
 
 FLAGS = flags.FLAGS
 
@@ -55,7 +55,6 @@ def main(unused_argv):
 
     # Construct the kernel function
     kernel_fn = nt.batch(kernel_fn, device_count=-1, batch_size=FLAGS.batch_size_kernel)
-    print('Kernel constructed')
 
     start_inf = time.time()
 
@@ -68,10 +67,28 @@ def main(unused_argv):
         diag_reg=1e-6
     )
 
-    fx_test_nngp, fx_test_ntk = predict_fn(x_test=x_test, get=('nngp', 'ntk'))
+    duration_kernel = time.time() - start_inf
+    print(f'Kernel constructed in {duration_kernel} seconds.')
 
-    fx_test_nngp.block_until_ready()
-    fx_test_ntk.block_until_ready()
+    # # To-do: Batch x_test, test with small x_test
+    # # Loop with print(gpu_memory)
+    # fx_test_nngp_ub, fx_test_ntk_ub = predict_fn(x_test=x_test, get=('nngp', 'ntk'))
+
+    fx_test_nngp, fx_test_ntk = [], []
+
+    # Compute predictions in batches
+    for i in range(x_test.shape[0] // FLAGS.batch_size_output):
+        start, end = i * FLAGS.batch_size_output, (i+1) * FLAGS.batch_size_output
+        x = x_test[start:end]
+        tmp_nngp, tmp_ntk = predict_fn(x_test=x, get=('nngp', 'ntk'))
+        fx_test_nngp.extend(tmp_nngp)
+        fx_test_ntk.extend(tmp_ntk)
+
+    fx_test_nngp = np.array(fx_test_nngp)
+    fx_test_ntk = np.array(fx_test_ntk)
+
+    # fx_test_nngp.block_until_ready()
+    # fx_test_ntk.block_until_ready()
 
     duration_inf = time.time() - start_inf
 

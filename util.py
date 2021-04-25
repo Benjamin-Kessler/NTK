@@ -21,3 +21,14 @@ def print_summary(name, labels, net_p, lin_p, loss):
         print('RMSE of predictions: {}'.format(
             np.sqrt(np.mean((net_p - lin_p) ** 2))))
     print('---------------------------------------')
+
+
+def output_in_batches(x, y, params, f_x, number_of_batches):
+    output = []
+    batch_size = x.shape[0] / number_of_batches
+    for i in range(number_of_batches):
+        start = int(i*batch_size)
+        end = int((i+1)*batch_size)
+        x_batch, y_batch = x[start:end], y[start:end]
+        output.extend(f_x(params, x_batch))
+    return np.array(output)
