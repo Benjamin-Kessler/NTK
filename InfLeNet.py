@@ -28,7 +28,7 @@ FLAGS = flags.FLAGS
 def main(unused_argv):
     # Load and normalize data
     print('Loading data...')
-    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist',
+    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist', n_test=100,
                                                             permute_train=True)
 
     # Reformat MNIST data to 28x28x1 pictures
@@ -37,20 +37,7 @@ def main(unused_argv):
     print('Data loaded and reshaped')
 
     # Build the LeNet network
-    init_fn, f, kernel_fn = stax.serial(
-        stax.Conv(out_chan=6 * FLAGS.network_width, filter_shape=(3, 3), strides=(1, 1), padding='VALID'),
-        stax.Relu(),
-        stax.AvgPool(window_shape=(2, 2), strides=(1, 1)),
-        stax.Conv(out_chan=16 * FLAGS.network_width, filter_shape=(3, 3), strides=(1, 1), padding='VALID'),
-        stax.Relu(),
-        stax.AvgPool(window_shape=(2, 2), strides=(1, 1)),
-        stax.Flatten(),
-        stax.Dense(120 * FLAGS.network_width),
-        stax.Relu(),
-        stax.Dense(84 * FLAGS.network_width),
-        stax.Relu(),
-        stax.Dense(10)
-    )
+    init_fn, f, kernel_fn = util.build_le_net(FLAGS.network_width)
     print('Network build complete')
 
     # Construct the kernel function
@@ -70,19 +57,22 @@ def main(unused_argv):
     duration_kernel = time.time() - start_inf
     print(f'Kernel constructed in {duration_kernel} seconds.')
 
-    # # To-do: Batch x_test, test with small x_test
-    # # Loop with print(gpu_memory)
     # fx_test_nngp_ub, fx_test_ntk_ub = predict_fn(x_test=x_test, get=('nngp', 'ntk'))
 
-    fx_test_nngp, fx_test_ntk = [], []
+    fx_test_nngp, fx_test_ntk = [] * x_test.shape[0], [] * x_test.shape[0]
+    print('Output vector allocated.')
 
     # Compute predictions in batches
     for i in range(x_test.shape[0] // FLAGS.batch_size_output):
+        time_batch = time.time()
         start, end = i * FLAGS.batch_size_output, (i+1) * FLAGS.batch_size_output
         x = x_test[start:end]
         tmp_nngp, tmp_ntk = predict_fn(x_test=x, get=('nngp', 'ntk'))
-        fx_test_nngp.extend(tmp_nngp)
-        fx_test_ntk.extend(tmp_ntk)
+        duration_batch = time.time() - time_batch
+        print(f'Batch {i} predicted in {duration_batch} seconds.')
+        print(f'Available GPU memory: {util.get_gpu_memory()} MiB')
+        fx_test_nngp[start:end] = tmp_nngp
+        fx_test_ntk[start:end] = tmp_ntk
 
     fx_test_nngp = np.array(fx_test_nngp)
     fx_test_ntk = np.array(fx_test_ntk)
