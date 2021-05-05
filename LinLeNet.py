@@ -8,6 +8,8 @@ Data is loaded using tensorflow datasets.
 """
 
 import time
+
+import jax.numpy
 from absl import app
 from absl import flags
 from jax import random
@@ -25,18 +27,20 @@ import pdb
 
 flags.DEFINE_float('learning_rate', 0.1,
                    'Learning rate to use during training.')
-flags.DEFINE_integer('batch_size', 10,
+flags.DEFINE_integer('batch_size', 20,
                      'Batch size to use during training.')
 flags.DEFINE_integer('batch_size_kernel', 0,
                      'Batch size for kernel construction, 0 for no batching.')
-flags.DEFINE_integer('train_epochs', 10,
+flags.DEFINE_integer('train_epochs', 30000,
                      'Number of epochs to train for.')
 flags.DEFINE_integer('network_width', 1,
                      'Factor by which the network width is multiplied.')
-flags.DEFINE_integer('learning_decline', 5000,
+flags.DEFINE_integer('learning_decline', 10000,
                      'Number of epochs after which the learning rate is divided by 10.')
 flags.DEFINE_integer('batch_count_accuracy', 10,
                      'Number of batches when computing output over entire data set.')
+flags.DEFINE_string('default_path', '/scicore/home/rothvo/kesben00/NTK/params/',
+                    'Path to directory where params files should be saved.')
 
 FLAGS = flags.FLAGS
 
@@ -44,7 +48,7 @@ FLAGS = flags.FLAGS
 def main(unused_argv):
     # Load and normalize data
     print('Loading data...')
-    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist', n_train=10, n_test=10,
+    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist',
                                                             permute_train=True)
 
     # Reformat MNIST data to 28x28x1 pictures
@@ -53,20 +57,7 @@ def main(unused_argv):
     print('Data loaded and reshaped')
 
     # Build the LeNet network
-    init_fn, f, kernel_fn = stax.serial(
-        stax.Conv(out_chan=6 * FLAGS.network_width, filter_shape=(3, 3), strides=(1, 1), padding='VALID'),
-        stax.Relu(),
-        stax.AvgPool(window_shape=(2, 2), strides=(1, 1)),
-        stax.Conv(out_chan=16 * FLAGS.network_width, filter_shape=(3, 3), strides=(1, 1), padding='VALID'),
-        stax.Relu(),
-        stax.AvgPool(window_shape=(2, 2), strides=(1, 1)),
-        stax.Flatten(),
-        stax.Dense(120 * FLAGS.network_width),
-        stax.Relu(),
-        stax.Dense(84 * FLAGS.network_width),
-        stax.Relu(),
-        stax.Dense(10)
-    )
+    init_fn, f, kernel_fn = util.build_le_net(FLAGS.network_width)
     print(f'Network of width x{FLAGS.network_width} built.')
 
     # Construct the kernel function
@@ -76,15 +67,16 @@ def main(unused_argv):
     # Compute random initial parameters
     key = random.PRNGKey(0)
     _, params = init_fn(key, (-1, 28, 28, 1))
+    params_lin = params
 
     # Linearize the network about its initial parameters.
     f_lin = nt.linearize(f, params)
 
     # Create a callable function for dynamic learning rates
     # Starts with learning_rate, divided by 10 after learning_decline epochs.
-    dynamic_learning_rate = lambda iteration_step: FLAGS.learning_rate / 10**((iteration_step //
-                                                                              (x_train.shape[0] // FLAGS.batch_size)) //
-                                                                              FLAGS.learning_decline)
+    dynamic_learning_rate = lambda iteration_step: FLAGS.learning_rate / 10 ** ((iteration_step //
+                                                                                 (x_train.shape[0] // FLAGS.batch_size)) //
+                                                                                FLAGS.learning_decline)
 
     # Create and initialize an optimizer for both f and f_lin.
     opt_init, opt_apply, get_params = optimizers.momentum(dynamic_learning_rate, 0.9)
@@ -94,14 +86,14 @@ def main(unused_argv):
     state = opt_init(params)
     state_lin = opt_init(params)
 
-    # # Create a cross-entropy loss function.
-    # loss = lambda fx, y_hat: -np.mean(logsoftmax(fx) * y_hat)
-
     # Define the accuracy function
     accuracy = lambda fx, y_hat: np.mean(np.argmax(fx, axis=1) == np.argmax(y_hat, axis=1))
 
     # Define mean square error loss function
     loss = lambda fx, y_hat: 0.5 * np.mean((fx - y_hat) ** 2)
+
+    # # Create a cross-entropy loss function.
+    # loss = lambda fx, y_hat: -np.mean(logsoftmax(fx) * y_hat)
 
     # Specialize the loss function to compute gradients for both linearized and
     # full networks.
@@ -109,113 +101,78 @@ def main(unused_argv):
     grad_loss_lin = jit(grad(lambda params, x, y: loss(f_lin(params, x), y)))
 
     # Train the network.
-    print('Training...')
-    print('Epoch\tTime\tAccuracy\tLin. Accuracy\tLoss\tLin. Loss')
-    print('-----------------------------------------------------------------')
+    print(f'Training with dynamic learning decline after {FLAGS.learning_decline} epochs...')
+    print('Epoch\tTime\tAccuracy\tLin. Accuracy\tLoss\tLin. Loss\tAccuracy Train\tLin.Accuracy Train')
+    print('----------------------------------------------------------------------------------------------------------')
 
     # Initialize training
-    epoch = 1
+    epoch = 100
     steps_per_epoch = x_train.shape[0] // FLAGS.batch_size
 
     start = time.time()
     start_epoch = time.time()
-
-    accuracy_sum = 0
-    lin_accuracy_sum = 0
-
-    # accuracy_array = [0] * steps_per_epoch
-    # lin_accuracy_array = [0] * steps_per_epoch
-    # loss_array = [0] * steps_per_epoch
-    # lin_loss_array = [0] * steps_per_epoch
 
     for i, (x, y) in enumerate(datasets.minibatch(
             x_train, y_train, FLAGS.batch_size, FLAGS.train_epochs)):
 
         # Update the parameters
         params = get_params(state)
-
-        import pdb
-        pdb.set_trace()
-        breakpoint()
-        # /scicore/scratch/kesben00/
-
         state = opt_apply(i, grad_loss(params, x, y), state)
 
         params_lin = get_params(state_lin)
         state_lin = opt_apply(i, grad_loss_lin(params_lin, x, y), state_lin)
 
-        # TO-DO: Print exact accuracy every n (=100?) epochs
-        accuracy_sum += accuracy(f(params, x), y)
-        lin_accuracy_sum += accuracy(f_lin(params_lin, x), y)
-
-        # # Save the accuracy and loss in an array
-        # pointer = i % steps_per_epoch
-        # accuracy_array[pointer] = float(accuracy(f(params, x), y))
-        # lin_accuracy_array[pointer] = float(accuracy(f_lin(params_lin, x), y))
-        #
-        # loss_array[pointer] = float(loss(f(params, x), y))
-        # lin_loss_array[pointer] = float(loss(f_lin(params_lin, x), y))
-
-        # End of epoch
-        if (i + 1) % steps_per_epoch == 0:
+        # Print information after each 100 epochs
+        if (i + 1) % (steps_per_epoch * 100) == 0:
             time_point = time.time() - start_epoch
-            # Print information about past epoch
 
-            # accuracy_tmp = np.array(accuracy_array)
-            # lin_accuracy_tmp = np.array(lin_accuracy_array)
-            # loss_tmp = np.array(loss_array)
-            # lin_loss_tmp = np.array(lin_loss_array)
-            # print('{}\t{:.3f}\t{:.4f}\t\t{:.4f}\t\t{:.4f}\t{:.4f}'.format(
-            #     epoch, time_point, np.mean(accuracy_tmp) * 100, np.mean(lin_accuracy_tmp) * 100,
-            #     np.mean(loss_tmp), np.mean(lin_loss_tmp)))
+            # Accuracy in batches
+            f_x = util.output_in_batches(x_train, params, f, FLAGS.batch_count_accuracy)
+            f_x_test = util.output_in_batches(x_test, params, f, FLAGS.batch_count_accuracy)
+            f_x_lin = util.output_in_batches(x_train, params_lin, f_lin, FLAGS.batch_count_accuracy)
+            f_x_lin_test = util.output_in_batches(x_test, params_lin, f_lin, FLAGS.batch_count_accuracy)
 
-            print('{}\t{:.3f}\t{:.4f}\t\t{:.4f}\t\t{:.4f}\t{:.4f}'.format(
-                epoch, time_point, accuracy_sum / steps_per_epoch * 100, lin_accuracy_sum / steps_per_epoch * 100,
-                loss(f(params, x), y), loss(f_lin(params_lin, x), y)))
-            accuracy_sum = 0
-            lin_accuracy_sum = 0
+            # Print information about past 100 epochs
+            print('{}\t{:.3f}\t{:.4f}\t\t{:.4f}\t\t{:.4f}\t{:.4f}\t\t{:.4f}\t\t{:.4f}'.format(
+                epoch, time_point, accuracy(f_x, y_train) * 100, accuracy(f_x_lin, y_train) * 100,
+                loss(f_x, y_train), loss(f_x_lin, y_train), accuracy(f_x_test, y_test) * 100,
+                accuracy(f_x_lin_test, y_test) * 100))
 
-            # print('{}\t{:.3f}\t{:.4f}\t\t{:.4f}\t\t{:.4f}\t{:.4f}'.format(
-            #     epoch, time_point, accuracy(f(params, x), y) * 100, accuracy(f_lin(params_lin, x), y) * 100,
-            #     loss(f(params, x), y), loss(f_lin(params_lin, x), y)))
+            # Save params if epoch is multiple of learning decline
+            if epoch % FLAGS.learning_decline == 0:
+                filename = FLAGS.default_path + f'LinLeNet_{epoch}_{FLAGS.learning_decline}.npy'
+                with open(filename, 'wb') as file:
+                    np.save(file, params)
+                filename_lin = FLAGS.default_path + f'LinLeNet_{epoch}_{FLAGS.learning_decline}_lin.npy'
+                with open(filename_lin, 'wb') as file_lin:
+                    np.save(file_lin, params_lin)
 
-            epoch += 1
-            # Reset timer
+            # Reset timer and set epoch
             start_epoch = time.time()
+            epoch += 100
 
     duration = time.time() - start
-    print('-----------------------------------------------------------------')
+    print('----------------------------------------------------------------------------------------------------------')
     print(f'Training complete in {duration} seconds.')
 
-    # x, y = x_train[:10000], y_train[:10000]
-    # x, y = x_train, y_train
-
-    # f_x = []
-    # f_x_lin = []
-    # train_set_batch = x_train.shape[0] / FLAGS.batch_count_accuracy
-    # # Compute output on train set in batches
-    # for i in range(FLAGS.batch_count_accuracy):
-    #     start = int(i*train_set_batch)
-    #     end = int((i+1)*train_set_batch)
-    #     x, y = x_train[start:end], y_train[start:end]
-    #     f_x.extend(f(params, x))
-    #     f_x_lin.extend(f_lin(params_lin, x))
-    # f_x = np.array(f_x)
-    # f_x_lin = np.array(f_x_lin)
-
-    # Print out summary data comparing the linear / nonlinear model.
+    # Save final params in file
+    filename = FLAGS.default_path + f'LinLeNet_final_{epoch}_{FLAGS.learning_decline}.npy'
+    with open(filename, 'wb') as file:
+        np.save(file, params)
+    filename_lin = FLAGS.default_path + f'LinLeNet_final_{epoch}_{FLAGS.learning_decline}_lin.npy'
+    with open(filename_lin, 'wb') as file_lin:
+        np.save(file_lin, params_lin)
 
     # Compute output in batches
-    f_x = util.output_in_batches(x_train, y_train, params, f, FLAGS.batch_count_accuracy)
-    f_x_lin = util.output_in_batches(x_train, y_train, params_lin, f_lin, FLAGS.batch_count_accuracy)
+    f_x = util.output_in_batches(x_train, params, f, FLAGS.batch_count_accuracy)
+    f_x_lin = util.output_in_batches(x_train, params_lin, f_lin, FLAGS.batch_count_accuracy)
 
-    f_x_test = util.output_in_batches(x_test, y_test, params, f, FLAGS.batch_count_accuracy//5)
-    f_x_lin_test = util.output_in_batches(x_test, y_test, params_lin, f_lin, FLAGS.batch_count_accuracy//5)
+    f_x_test = util.output_in_batches(x_test, params, f, FLAGS.batch_count_accuracy)
+    f_x_lin_test = util.output_in_batches(x_test, params_lin, f_lin, FLAGS.batch_count_accuracy)
 
+    # Print out summary data comparing the linear / nonlinear model.
     util.print_summary('train', y_train, f_x, f_x_lin, loss)
-    # util.print_summary(
-    #     'test', y_test, f(params, x_test), f_lin(params_lin, x_test), loss)
-    util.print_summary('compare', y_test, f_x_test, f_x_lin_test, loss)
+    util.print_summary('test', y_test, f_x_test, f_x_lin_test, loss)
 
 
 if __name__ == '__main__':
