@@ -1,6 +1,8 @@
 """A collection of utility functions for generating outputs."""
-
+import jax
 import jax.numpy as np
+from jax import random
+from jax import ops
 from neural_tangents import stax
 import subprocess as sp
 
@@ -63,5 +65,20 @@ def get_gpu_memory():
     COMMAND = "nvidia-smi --query-gpu=memory.free --format=csv"
     memory_free_info = _output_to_list(sp.check_output(COMMAND.split()))[1:]
     memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-    print(memory_free_values)
-    return memory_free_values
+    # print(memory_free_values)
+    return f'{memory_free_values} MiB'
+
+
+def add_translation(dataset, pixel):
+    # translations = random.randint(key, [2*dataset.shape[0]], -7, 7)
+    # print(dataset.shape[0])
+    # key = random.PRNGKey(4)
+    dataset_padded = np.pad(dataset, ((0, 0), (pixel, pixel), (pixel, pixel), (0, 0)), constant_values=-0.41795284)
+    # breakpoint()
+    for n in range(0, dataset.shape[0]):
+        # print(n)
+        key = random.PRNGKey(n)
+        dataset = jax.ops.index_update(dataset, n, np.roll(dataset_padded[n], random.randint(key, [2], -pixel, pixel),
+                                                           axis=(0, 1))[pixel:(28+pixel), pixel:(28+pixel)])
+        # jax.ops.index_update(dataset, n, np.roll(dataset[n], translations[2*n:2*n-1], axis=(0, 1)))
+    return dataset
