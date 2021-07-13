@@ -20,8 +20,8 @@ module spider
 ````
 The CUDA 10 JAX wheels require cuDNN 7, whereas the CUDA 11 JAX wheels require cuDNN 8. Depending on which version you prefer, you can install them to your conda environment using
 ````
-conda install -c cuda-forge cudatoolkit=version
-conda install -c cuda-forge cudnn=version
+conda install -c conda-forge cudatoolkit=version
+conda install -c conda-forge cudnn=version
 ````
 Keep in mind that your desired version might not be available or compatible with the given version of TensorFlow. In this case, an older version should be considered. Furthermore, please make sure that your version is available on sciCORE. You can always check the version in your conda environment by running
 ````
