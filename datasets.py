@@ -25,7 +25,7 @@ def get_dataset(name,
                 input_key='image'):
     """Download, parse and process a dataset to unit scale and one-hot labels.
        Uses 'tensorflow_datasets.load' for downloading datasets."""
-    ds_builder = tfds.builder(name)
+    ds_builder = tfds.builder(name + (':3.*.*' if name != 'imdb_reviews' else ''))
 
     ds_train, ds_test = tfds.as_numpy(
         tfds.load(
