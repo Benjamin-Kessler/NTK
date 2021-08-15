@@ -44,10 +44,10 @@ def build_le_net(network_width):
     return stax.serial(
         stax.Conv(out_chan=6 * network_width, filter_shape=(3, 3), strides=(1, 1), padding='VALID'),
         stax.Relu(),
-        stax.AvgPool(window_shape=(2, 2), strides=(1, 1)),
+        stax.AvgPool(window_shape=(2, 2), strides=(2, 2)),
         stax.Conv(out_chan=16 * network_width, filter_shape=(3, 3), strides=(1, 1), padding='VALID'),
         stax.Relu(),
-        stax.AvgPool(window_shape=(2, 2), strides=(1, 1)),
+        stax.AvgPool(window_shape=(2, 2), strides=(2, 2)),
         stax.Flatten(),
         stax.Dense(120 * network_width),
         stax.Relu(),
