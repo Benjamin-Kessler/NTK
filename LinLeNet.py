@@ -28,11 +28,11 @@ flags.DEFINE_integer('batch_size', 1000,
                      'Batch size to use during training.')
 flags.DEFINE_integer('batch_size_kernel', 0,
                      'Batch size for kernel construction, 0 for no batching.')
-flags.DEFINE_integer('train_epochs', 50000,
+flags.DEFINE_integer('train_epochs', 30000,
                      'Number of epochs to train for.')
-flags.DEFINE_integer('network_width', 1,
+flags.DEFINE_integer('network_width', 25,
                      'Factor by which the network width is multiplied.')
-flags.DEFINE_integer('learning_decline', 20000,
+flags.DEFINE_integer('learning_decline', 9000,
                      'Number of epochs after which the learning rate is divided by 10.')
 flags.DEFINE_integer('batch_count_accuracy', 1000,
                      'Number of batches when computing output over entire data set.')
@@ -56,18 +56,24 @@ def main(unused_argv):
     x_train = np.asarray(x_train.reshape(-1, 28, 28, 1))
     x_test = np.asarray(x_test.reshape(-1, 28, 28, 1))
     print('Data loaded and reshaped')
-    # print(f'Available GPU memory: {util.get_gpu_memory()}')
+    print(f'Available GPU memory: {util.get_gpu_memory()}')
 
-    # Add random translation to images
+    # Set random seed
     key = random.PRNGKey(0)
-    x_train = util.add_translation(x_train, FLAGS.max_pixel)
-    x_test = util.add_translation(x_test, FLAGS.max_pixel)
-    print(f'Random translation by up to {FLAGS.max_pixel} pixels added')
 
-    # Build the LeNet network
+    # # Add random translation to images
+    # x_train = util.add_translation(x_train, FLAGS.max_pixel)
+    # x_test = util.add_translation(x_test, FLAGS.max_pixel)
+    # print(f'Random translation by up to {FLAGS.max_pixel} pixels added')
+
+    # # Add random translations with padding
+    # x_train = util.add_padded_translation(x_train, 10)
+    # x_test = util.add_padded_translation(x_test, 10)
+    # print(f'Random translations with additional padding up to 10 pixels added')
+
+    # Build the LeNet network with NTK parameterization
     init_fn, f, kernel_fn = util.build_le_net(FLAGS.network_width)
     print(f'Network of width x{FLAGS.network_width} built.')
-    # Which parametrization for init? NTK?
 
     # # Construct the kernel function
     # kernel_fn = nt.batch(kernel_fn, device_count=-1, batch_size=FLAGS.batch_size_kernel)
@@ -86,6 +92,7 @@ def main(unused_argv):
     #     np.save(file, params)
 
     # Linearize the network about its initial parameters.
+    # Use jit for faster GPU computation (only feasible for width < 25)
     f_lin = nt.linearize(f, params)
     if FLAGS.network_width <= 10:
         f_jit = jit(f)
@@ -101,6 +108,7 @@ def main(unused_argv):
                                                                                 FLAGS.learning_decline)
 
     # Create and initialize an optimizer for both f and f_lin.
+    # Use momentum with coefficient 0.9 and jit
     opt_init, opt_apply, get_params = optimizers.momentum(dynamic_learning_rate, 0.9)
     opt_apply = jit(opt_apply)
 
@@ -131,6 +139,7 @@ def main(unused_argv):
     epoch = 0
     steps_per_epoch = x_train.shape[0] // FLAGS.batch_size
 
+    # Set start time (total and 100 epochs)
     start = time.time()
     start_epoch = time.time()
 
@@ -166,10 +175,10 @@ def main(unused_argv):
 
             # Save params if epoch is multiple of learning decline or multiple of fixed value
             if epoch % FLAGS.learning_decline == 0:
-                filename = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_mod_{epoch}_{FLAGS.learning_decline}.npy'
+                filename = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_pmod_{epoch}_{FLAGS.learning_decline}.npy'
                 with open(filename, 'wb') as file:
                     np.save(file, params)
-                filename_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_mod_{epoch}_{FLAGS.learning_decline}_lin.npy'
+                filename_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_pmod_{epoch}_{FLAGS.learning_decline}_lin.npy'
                 with open(filename_lin, 'wb') as file_lin:
                     np.save(file_lin, params_lin)
 
@@ -181,10 +190,10 @@ def main(unused_argv):
     print(f'Training complete in {duration} seconds.')
 
     # Save final params in file
-    filename_final = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_mod_{FLAGS.train_epochs}_{FLAGS.learning_decline}.npy '
+    filename_final = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_pmod_{FLAGS.train_epochs}_{FLAGS.learning_decline}.npy '
     with open(filename_final, 'wb') as final:
         np.save(final, params)
-    filename_final_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_mod_{FLAGS.train_epochs}_{FLAGS.learning_decline}_lin.npy'
+    filename_final_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_pmod_{FLAGS.train_epochs}_{FLAGS.learning_decline}_lin.npy'
     with open(filename_final_lin, 'wb') as final_lin:
         np.save(final_lin, params_lin)
 
