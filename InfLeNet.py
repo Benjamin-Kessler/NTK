@@ -15,12 +15,12 @@ from jax import random
 import datasets
 import util
 
-flags.DEFINE_integer('batch_size_kernel', 2,
+flags.DEFINE_integer('batch_size_kernel', 5,
                      'Batch size for kernel construction, 0 for no batching.')
 flags.DEFINE_integer('network_width', 1,
                      'Factor by which the network width is multiplied.')
-flags.DEFINE_integer('batch_size_output', 80,
-                     'Batch size for computing final label predictions. Must be divisible by batch_size_kernel * '
+flags.DEFINE_integer('batch_size_output', 10,
+                     'Batch size for computing final label predictions. MUST BE DIVISIBLE BY batch_size_kernel * '
                      'number_of_devices')
 flags.DEFINE_integer('max_pixel', 5,
                      'Maximal number of pixels that an image is translated with.')
@@ -31,7 +31,7 @@ FLAGS = flags.FLAGS
 def main(unused_argv):
     # Load and normalize data
     print('Loading data...')
-    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist', n_train=60000,
+    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist', n_train=10, n_test=10,
                                                             permute_train=True)
 
     # Reformat MNIST data to 28x28x1 pictures
@@ -78,7 +78,7 @@ def main(unused_argv):
 
     fx_test_nngp, fx_test_ntk = [] * x_test.shape[0], [] * x_test.shape[0]
     print('Output vector allocated.')
-    print(f'Available GPU memory: {util.get_gpu_memory()} MiB')
+    # print(f'Available GPU memory: {util.get_gpu_memory()} MiB')
 
     # Compute predictions in batches
     for i in range(x_test.shape[0] // FLAGS.batch_size_output):
@@ -89,7 +89,7 @@ def main(unused_argv):
         # tmp_ntk = predict_fn(x_test=x, get='ntk')
         duration_batch = time.time() - time_batch
         print(f'Batch {i+1} predicted in {duration_batch} seconds.')
-        print(f'Available GPU memory: {util.get_gpu_memory()} MiB')
+        # print(f'Available GPU memory: {util.get_gpu_memory()} MiB')
         fx_test_nngp[start:end] = tmp_nngp
         fx_test_ntk[start:end] = tmp_ntk
 

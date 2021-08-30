@@ -28,11 +28,11 @@ flags.DEFINE_integer('batch_size', 1000,
                      'Batch size to use during training.')
 flags.DEFINE_integer('batch_size_kernel', 0,
                      'Batch size for kernel construction, 0 for no batching.')
-flags.DEFINE_integer('train_epochs', 30000,
+flags.DEFINE_integer('train_epochs', 100000,
                      'Number of epochs to train for.')
-flags.DEFINE_integer('network_width', 25,
+flags.DEFINE_integer('network_width', 1,
                      'Factor by which the network width is multiplied.')
-flags.DEFINE_integer('learning_decline', 9000,
+flags.DEFINE_integer('learning_decline', 30000,
                      'Number of epochs after which the learning rate is divided by 10.')
 flags.DEFINE_integer('batch_count_accuracy', 1000,
                      'Number of batches when computing output over entire data set.')
@@ -48,7 +48,7 @@ def main(unused_argv):
     # print(f'Available GPU memory: {util.get_gpu_memory()}')
     # Load and normalize data
     print('Loading data...')
-    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist',
+    x_train, y_train, x_test, y_test = datasets.get_dataset('mnist', n_train=60000, n_test=10000,
                                                             permute_train=True)
     # print(f'Available GPU memory: {util.get_gpu_memory()}')
 
@@ -56,7 +56,7 @@ def main(unused_argv):
     x_train = np.asarray(x_train.reshape(-1, 28, 28, 1))
     x_test = np.asarray(x_test.reshape(-1, 28, 28, 1))
     print('Data loaded and reshaped')
-    print(f'Available GPU memory: {util.get_gpu_memory()}')
+    # print(f'Available GPU memory: {util.get_gpu_memory()}')
 
     # Set random seed
     key = random.PRNGKey(0)
@@ -173,14 +173,14 @@ def main(unused_argv):
                 loss(f_x, y_train), loss(f_x_lin, y_train),
                                    accuracy(f_x_test, y_test) * 100, accuracy(f_x_lin_test, y_test) * 100))
 
-            # Save params if epoch is multiple of learning decline or multiple of fixed value
-            if epoch % FLAGS.learning_decline == 0:
-                filename = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_pmod_{epoch}_{FLAGS.learning_decline}.npy'
-                with open(filename, 'wb') as file:
-                    np.save(file, params)
-                filename_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_pmod_{epoch}_{FLAGS.learning_decline}_lin.npy'
-                with open(filename_lin, 'wb') as file_lin:
-                    np.save(file_lin, params_lin)
+            # # Save params if epoch is multiple of learning decline or multiple of fixed value
+            # if epoch % FLAGS.learning_decline == 0:
+            #     filename = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_pmod_{epoch}_{FLAGS.learning_decline}.npy'
+            #     with open(filename, 'wb') as file:
+            #         np.save(file, params)
+            #     filename_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_pmod_{epoch}_{FLAGS.learning_decline}_lin.npy'
+            #     with open(filename_lin, 'wb') as file_lin:
+            #         np.save(file_lin, params_lin)
 
             # Reset timer
             start_epoch = time.time()
@@ -189,13 +189,13 @@ def main(unused_argv):
     print('----------------------------------------------------------------------------------------------------------')
     print(f'Training complete in {duration} seconds.')
 
-    # Save final params in file
-    filename_final = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_pmod_{FLAGS.train_epochs}_{FLAGS.learning_decline}.npy '
-    with open(filename_final, 'wb') as final:
-        np.save(final, params)
-    filename_final_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_pmod_{FLAGS.train_epochs}_{FLAGS.learning_decline}_lin.npy'
-    with open(filename_final_lin, 'wb') as final_lin:
-        np.save(final_lin, params_lin)
+    # # Save final params in file
+    # filename_final = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_pmod_{FLAGS.train_epochs}_{FLAGS.learning_decline}.npy '
+    # with open(filename_final, 'wb') as final:
+    #     np.save(final, params)
+    # filename_final_lin = FLAGS.default_path + f'LinLeNetx{FLAGS.network_width}_final_pmod_{FLAGS.train_epochs}_{FLAGS.learning_decline}_lin.npy'
+    # with open(filename_final_lin, 'wb') as final_lin:
+    #     np.save(final_lin, params_lin)
 
     # Compute output in batches
     f_x = util.output_in_batches(x_train, params, f_jit, FLAGS.batch_count_accuracy)
