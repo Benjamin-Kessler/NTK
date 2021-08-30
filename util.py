@@ -58,7 +58,7 @@ def build_le_net(network_width):
 
 
 def get_gpu_memory():
-    """ Print the available memory of all provided GPUs."""
+    """ Print the available memory of all provided GPUs. Requires GPUs to exist. """
     _output_to_list = lambda x: x.decode('ascii').split('\n')[:-1]
 
     # ACCEPTABLE_AVAILABLE_MEMORY = 1024
